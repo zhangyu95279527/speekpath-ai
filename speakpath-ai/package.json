@@ -1,0 +1,11 @@
+{
+  "name": "speakpath-ai",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "web": "pnpm --filter @speakpath/mobile web",
+    "build:web": "pnpm --filter @speakpath/mobile build:web",
+    "mobile": "pnpm --filter @speakpath/mobile start",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

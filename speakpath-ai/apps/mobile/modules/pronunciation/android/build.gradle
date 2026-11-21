@@ -1,0 +1,26 @@
+// Expo 模块构建脚本（SDK 53 / AGP 8.x）
+// 使用 expo-module-gradle-plugin 提供 kotlinVersion、compileSdk 等默认配置。
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'ai.speakpath.pronunciation'
+version = '0.1.0'
+
+android {
+  namespace "ai.speakpath.pronunciation"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+
+  // 阿里云「智能语音评测」安卓 SDK（先声 SingSound）。
+  // 注意：DASHSCOPE_PRON/ssound-android-3.0.2-3/ 目录只包含 .so 原生库，
+  // 缺少 Java API 的 aar/jar 包（无 SSOralEvaluatingManager 等类），无法编译。
+  // 请向阿里云控制台「口语评测」项目索取完整安卓 SDK 包，将 aar 放入 libs/ 后即可编译。
+  // 详见 libs/README.md。
+  implementation fileTree(dir: 'libs', include: ['*.aar'])
+}

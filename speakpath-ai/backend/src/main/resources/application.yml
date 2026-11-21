@@ -1,0 +1,192 @@
+# SpeakPath AI 后端默认配置（本地开发）。
+# 生产/容器环境使用 application-docker.yml（SPRING_PROFILES_ACTIVE=docker）。
+server:
+  port: 8080
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: speakpath-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 25s
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/speakpath}
+    username: ${SPRING_DATASOURCE_USERNAME:speakpath}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:15}
+      minimum-idle: ${DB_POOL_MIN_IDLE:3}
+      connection-timeout: 3000
+      validation-timeout: 2000
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      connect-timeout: 2s
+      timeout: 2s
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-ttl-seconds: 900
+    refresh-ttl-seconds: 2592000
+  storage:
+    endpoint: ${APP_STORAGE_ENDPOINT:http://localhost:9000}
+    access-key: ${APP_STORAGE_ACCESS_KEY:speakpath-admin}
+    secret-key: ${APP_STORAGE_SECRET_KEY:}
+    bucket: ${APP_STORAGE_BUCKET:speakpath-audio}
+    region: ${APP_STORAGE_REGION:us-east-1}
+    path-style-access: ${APP_STORAGE_PATH_STYLE_ACCESS:true}
+    presign-expiry-seconds: 600
+    public-endpoint: ${APP_STORAGE_PUBLIC_ENDPOINT:}
+  ai:
+    secrets:
+      # 国内模型（OpenAI 兼容协议）；配置任一密钥后启动时自动切换到对应厂商
+      deepseek-api-key: ${DEEPSEEK_API_KEY:}
+      dashscope-api-key: ${DASHSCOPE_API_KEY:}
+      zhipu-api-key: ${ZHIPU_API_KEY:}
+      moonshot-api-key: ${MOONSHOT_API_KEY:}
+      ark-api-key: ${ARK_API_KEY:}
+      # 兼容保留
+      openai-api-key: ${OPENAI_API_KEY:}
+      azure-speech-key: ${AZURE_SPEECH_KEY:}
+      google-api-key: ${GOOGLE_API_KEY:}
+    llm:
+      # 直接指定文本 LLM 厂商/模型，覆盖 DB 中 ai_model_configs 的自动选择；provider 留空则回退 DB 配置。
+      provider: ${LLM_PROVIDER:}
+      model: ${LLM_MODEL:}
+      base-url: ${LLM_BASE_URL:}
+  # 语音能力（ASR/TTS/发音评测/实时语音）：provider 直接指定厂商（mock / dashscope / xfyun / volcengine / tencent）。
+  # provider=mock 或缺省时使用 MOCK 兜底；设为真实厂商需在对应 vendors 下配置密钥。
+  speech:
+    capabilities:
+      asr:
+        provider: ${SPEECH_ASR_PROVIDER:mock}
+        vendors:
+          dashscope:
+            api-key: ${ASR_DASHSCOPE_API_KEY:}
+            base-url: ${ASR_DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/api/v1}
+            model: qwen-audio-3.1-asr-flash
+          xfyun:
+            app-id: ${ASR_XFYUN_APP_ID:}
+            api-key: ${ASR_XFYUN_API_KEY:}
+            api-secret: ${ASR_XFYUN_API_SECRET:}
+            model: iat
+          volcengine:
+            api-key: ${ASR_VOLCENGINE_API_KEY:}
+            model: doubao-seed-asr-2.0
+          tencent:
+            app-id: ${ASR_TENCENT_SECRET_ID:}
+            secret-key: ${ASR_TENCENT_SECRET_KEY:}
+            model: 8k_zh
+      tts:
+        provider: ${SPEECH_TTS_PROVIDER:mock}
+        vendors:
+          dashscope:
+            api-key: ${TTS_DASHSCOPE_API_KEY:}
+            base-url: ${TTS_DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/api/v1}
+            model: qwen-audio-3.1-tts-next
+            voice: longxiaochun
+            timeout-ms: 60000
+          xfyun:
+            app-id: ${TTS_XFYUN_APP_ID:}
+            api-key: ${TTS_XFYUN_API_KEY:}
+            api-secret: ${TTS_XFYUN_API_SECRET:}
+            model: tts
+          volcengine:
+            api-key: ${TTS_VOLCENGINE_API_KEY:}
+            model: doubao-seed-tts
+          tencent:
+            app-id: ${TTS_TENCENT_SECRET_ID:}
+            secret-key: ${TTS_TENCENT_SECRET_KEY:}
+            model: tts
+      pronunciation:
+        provider: ${SPEECH_PRON_PROVIDER:mock}
+        vendors:
+          dashscope:
+            app-id: ${PRON_DASHSCOPE_APP_ID:}
+            api-secret: ${PRON_DASHSCOPE_APP_SECRET:}
+            base-url: ${PRON_DASHSCOPE_BASE_URL:https://api.cloud.ssapi.cn/auth/authorize}
+            core-type: en.sent.score
+            model: pronunciation
+          xfyun:
+            app-id: ${PRON_XFYUN_APP_ID:}
+            api-key: ${PRON_XFYUN_API_KEY:}
+            api-secret: ${PRON_XFYUN_API_SECRET:}
+            model: ise
+          volcengine:
+            api-key: ${PRON_VOLCENGINE_API_KEY:}
+            model: doubao-pronunciation
+          tencent:
+            app-id: ${PRON_TENCENT_SECRET_ID:}
+            secret-key: ${PRON_TENCENT_SECRET_KEY:}
+            model: pronunciation
+      realtime:
+        provider: ${SPEECH_RT_PROVIDER:mock}
+        vendors:
+          dashscope:
+            api-key: ${RT_DASHSCOPE_API_KEY:}
+            base-url: ${RT_DASHSCOPE_BASE_URL:wss://dashscope.aliyuncs.com/api-ws/v1/realtime}
+            model: qwen-audio-3.1-realtime-flash
+          xfyun:
+            app-id: ${RT_XFYUN_APP_ID:}
+            api-key: ${RT_XFYUN_API_KEY:}
+            api-secret: ${RT_XFYUN_API_SECRET:}
+            model: sparkos-interactive
+          volcengine:
+            api-key: ${RT_VOLCENGINE_API_KEY:}
+            model: doubao-realtime
+          tencent:
+            app-id: ${RT_TENCENT_SECRET_ID:}
+            secret-key: ${RT_TENCENT_SECRET_KEY:}
+            model: trtc-ai
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8081,http://127.0.0.1:8081}
+
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    org.flywaydb: INFO
+  pattern:
+    correlation: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} traceId=%X{traceId} "

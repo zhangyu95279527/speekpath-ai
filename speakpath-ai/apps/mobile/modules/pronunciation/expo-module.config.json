@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "podspecPath": "SingSoundPronunciation.podspec",
+    "modules": ["PronunciationModule"]
+  },
+  "android": {
+    "modules": ["ai.speakpath.pronunciation.PronunciationModule"]
+  }
+}

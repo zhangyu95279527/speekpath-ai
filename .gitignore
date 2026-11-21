@@ -1,0 +1,37 @@
+# Local credentials, generated files and editor state.
+.env
+.env.*
+!.env.example
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+local.properties
+.DS_Store
+.idea/
+.vscode/
+.trae/
+.screenshots/
+.pnpm-store/
+node_modules/
+dist/
+target/
+.expo/
+.gradle/
+*.log
+
+# Local reference material and third-party SDK distributions.
+/*.docx
+/*.zip
+/DASHSCOPE_PRON/
+/speakpath-backend-deploy/
+/speakpath-ai/apps/mobile/public/sdk/engine.js
+/speakpath-ai/apps/mobile/android/
+/speakpath-ai/apps/mobile/ios/
+*.framework/
+*.aar
+*.har
+*.so

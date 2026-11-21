@@ -1,0 +1,188 @@
+name: speakpath
+
+services:
+  postgres:
+    image: ${IMAGE_REGISTRY:-public.ecr.aws/docker/library}/postgres:16-alpine
+    container_name: speakpath-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-speakpath}
+      POSTGRES_USER: ${POSTGRES_USER:-speakpath}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [speakpath]
+
+  redis:
+    image: ${IMAGE_REGISTRY:-public.ecr.aws/docker/library}/redis:7.4-alpine
+    container_name: speakpath-redis
+    restart: unless-stopped
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [speakpath]
+
+  # 开发环境的 S3 兼容存储。使用固定版本的 Adobe 官方发行包。
+  s3mock:
+    image: speakpath-local-s3mock:4.12.4
+    build:
+      context: ./deploy
+      dockerfile: s3mock.Dockerfile
+      args:
+        IMAGE_REGISTRY: ${IMAGE_REGISTRY:-public.ecr.aws/docker/library}
+    container_name: speakpath-s3mock
+    restart: unless-stopped
+    environment:
+      initialBuckets: ${S3_BUCKET:-speakpath-audio}
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /data
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${S3_PORT:-9000}:9090"
+    volumes:
+      - s3mock_data:/data
+    networks: [speakpath]
+
+  backend:
+    image: speakpath-ai-backend
+    pull_policy: never
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        IMAGE_REGISTRY: ${IMAGE_REGISTRY:-public.ecr.aws/docker/library}
+    container_name: speakpath-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:?Run bash deploy.sh to initialize JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-speakpath}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-speakpath}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      APP_STORAGE_ENDPOINT: http://s3mock:9090
+      APP_STORAGE_ACCESS_KEY: ${S3_ACCESS_KEY:-speakpath}
+      APP_STORAGE_SECRET_KEY: ${S3_SECRET_KEY:?Run bash deploy.sh to initialize S3_SECRET_KEY}
+      APP_STORAGE_BUCKET: ${S3_BUCKET:-speakpath-audio}
+      # 预签名 URL 必须对浏览器/客户端可达：宿主机访问使用 localhost:9000
+      APP_STORAGE_PUBLIC_ENDPOINT: ${APP_STORAGE_PUBLIC_ENDPOINT:-http://localhost:${S3_PORT:-9000}}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      ASR_DASHSCOPE_BASE_URL: ${ASR_DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com/api/v1}
+      TTS_DASHSCOPE_BASE_URL: ${TTS_DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com/api/v1}
+      RT_DASHSCOPE_BASE_URL: ${RT_DASHSCOPE_BASE_URL:-wss://dashscope.aliyuncs.com/api-ws/v1/realtime}
+      PRON_DASHSCOPE_BASE_URL: ${PRON_DASHSCOPE_BASE_URL:-https://api.cloud.ssapi.cn/auth/authorize}
+      # AI 密钥仅注入后端运行时。
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+      ARK_API_KEY: ${ARK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # 语音能力厂商选择（mock/dashscope/xfyun/volcengine/tencent）
+      SPEECH_ASR_PROVIDER: ${SPEECH_ASR_PROVIDER:-mock}
+      SPEECH_TTS_PROVIDER: ${SPEECH_TTS_PROVIDER:-mock}
+      SPEECH_PRON_PROVIDER: ${SPEECH_PRON_PROVIDER:-mock}
+      SPEECH_RT_PROVIDER: ${SPEECH_RT_PROVIDER:-mock}
+      ASR_DASHSCOPE_API_KEY: ${ASR_DASHSCOPE_API_KEY:-}
+      ASR_XFYUN_APP_ID: ${ASR_XFYUN_APP_ID:-}
+      ASR_XFYUN_API_KEY: ${ASR_XFYUN_API_KEY:-}
+      ASR_XFYUN_API_SECRET: ${ASR_XFYUN_API_SECRET:-}
+      ASR_VOLCENGINE_API_KEY: ${ASR_VOLCENGINE_API_KEY:-}
+      ASR_TENCENT_SECRET_ID: ${ASR_TENCENT_SECRET_ID:-}
+      ASR_TENCENT_SECRET_KEY: ${ASR_TENCENT_SECRET_KEY:-}
+      TTS_DASHSCOPE_API_KEY: ${TTS_DASHSCOPE_API_KEY:-}
+      TTS_XFYUN_APP_ID: ${TTS_XFYUN_APP_ID:-}
+      TTS_XFYUN_API_KEY: ${TTS_XFYUN_API_KEY:-}
+      TTS_XFYUN_API_SECRET: ${TTS_XFYUN_API_SECRET:-}
+      TTS_VOLCENGINE_API_KEY: ${TTS_VOLCENGINE_API_KEY:-}
+      TTS_TENCENT_SECRET_ID: ${TTS_TENCENT_SECRET_ID:-}
+      TTS_TENCENT_SECRET_KEY: ${TTS_TENCENT_SECRET_KEY:-}
+      PRON_DASHSCOPE_APP_ID: ${PRON_DASHSCOPE_APP_ID:-}
+      PRON_DASHSCOPE_APP_SECRET: ${PRON_DASHSCOPE_APP_SECRET:-}
+      PRON_XFYUN_APP_ID: ${PRON_XFYUN_APP_ID:-}
+      PRON_XFYUN_API_KEY: ${PRON_XFYUN_API_KEY:-}
+      PRON_XFYUN_API_SECRET: ${PRON_XFYUN_API_SECRET:-}
+      PRON_VOLCENGINE_API_KEY: ${PRON_VOLCENGINE_API_KEY:-}
+      PRON_TENCENT_SECRET_ID: ${PRON_TENCENT_SECRET_ID:-}
+      PRON_TENCENT_SECRET_KEY: ${PRON_TENCENT_SECRET_KEY:-}
+      RT_DASHSCOPE_API_KEY: ${RT_DASHSCOPE_API_KEY:-}
+      RT_XFYUN_APP_ID: ${RT_XFYUN_APP_ID:-}
+      RT_XFYUN_API_KEY: ${RT_XFYUN_API_KEY:-}
+      RT_XFYUN_API_SECRET: ${RT_XFYUN_API_SECRET:-}
+      RT_VOLCENGINE_API_KEY: ${RT_VOLCENGINE_API_KEY:-}
+      RT_TENCENT_SECRET_ID: ${RT_TENCENT_SECRET_ID:-}
+      RT_TENCENT_SECRET_KEY: ${RT_TENCENT_SECRET_KEY:-}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75.0}
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      s3mock:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    networks: [speakpath]
+
+  web:
+    image: speakpath-ai-web
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+      args:
+        IMAGE_REGISTRY: ${IMAGE_REGISTRY:-public.ecr.aws/docker/library}
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8081}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [speakpath]
+
+volumes:
+  postgres_data:
+  redis_data:
+  s3mock_data:
+
+networks:
+  speakpath:
+    name: speakpath-network
+    driver: bridge

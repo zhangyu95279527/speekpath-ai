@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "SpeakPath AI",
+    "slug": "speakpath-ai",
+    "scheme": "speakpath",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.speakpath.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "SpeakPath 需要麦克风权限进行口语测评与 AI 口语陪练。"
+      }
+    },
+    "android": {
+      "package": "ai.speakpath.app",
+      "permissions": ["RECORD_AUDIO", "INTERNET"]
+    }
+  }
+}
